@@ -56,6 +56,7 @@ This will never terminate.
 
 >       nextFstSet :: Name -> NameSet
 >       nextFstSet s | terminalP s = Set.singleton s
->                    | otherwise   = Set.unions [ joinSymSets currFstSet rhs
+>                    | otherwise   = Set.unions [ joinSymSets currFstSet rhsNames
 >                                               | rl <- prodsOfName s
->                                               , let Production _ rhs _ _ = prodNo rl ]
+>                                               , let Production _ rhs _ _ = prodNo rl
+>                                               , let rhsNames = map fst rhs ]

@@ -10,6 +10,7 @@ Generating info files.
 > import qualified Data.Set as Set hiding ( Set )
 > import Happy.Grammar
 > import Happy.Grammar.ExpressionWithHole ( substExpressionWithHole )
+> import Happy.Indentation ( IndentRel )
 > import Happy.Tabular.LALR   ( Lr0Item(..), LRAction(..), Goto(..), GotoTable, ActionTable )
 
 > import Data.Array
@@ -101,7 +102,7 @@ Produce a file of parser information, useful for debugging the parser.
 >         str "\t"
 >       . showName nt
 >       . str " -> "
->       . interleave " " (map showName toks))
+>       . interleave " " (map showNameWithIndentation toks))
 >       . str "  (" . shows i . str ")"
 
 >   showStates =
@@ -132,9 +133,9 @@ Produce a file of parser information, useful for debugging the parser.
 >                 str "\t"
 >               . showName nt
 >               . str " -> "
->               . interleave " " (map showName beforeDot)
+>               . interleave " " (map showNameWithIndentation beforeDot)
 >               . str ". "
->               . interleave " " (map showName afterDot))
+>               . interleave " " (map showNameWithIndentation afterDot))
 >       . str "   (rule " . shows rule . str ")"
 >       where
 >               Production nt toks _sem _prec = lookupProd rule
@@ -213,6 +214,9 @@ Produce a file of parser information, useful for debugging the parser.
 >   nameOf n    = env ! n
 >   showName    = str . nameOf
 >   showJName j = str . ljustify j . nameOf
+
+>   showNameWithIndentation :: (Name, IndentRel) -> String -> String
+>   showNameWithIndentation (name, rel) = str (show rel ++ "[" ++ nameOf name ++ "]")
 
 > ljustify :: Int -> String -> String
 > ljustify n s = s ++ replicate (max 0 (n - length s)) ' '

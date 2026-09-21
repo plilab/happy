@@ -74,13 +74,20 @@ common common-stanza
   default-extensions:  CPP, MagicHash, FlexibleContexts, NamedFieldPuns, PatternGuards
   ghc-options: -Wall -Wno-incomplete-uni-patterns
 
+library indentation
+  import: common-stanza
+  hs-source-dirs:      indentation/src
+  exposed-modules:
+       Happy.Indentation
+  build-depends:       base < 5
+
 library grammar
   import: common-stanza
   hs-source-dirs:      grammar/src
   exposed-modules:
        Happy.Grammar
        Happy.Grammar.ExpressionWithHole
-  build-depends:       base < 5, array
+  build-depends:       base < 5, array, indentation
 
 library frontend
   import: common-stanza
@@ -89,7 +96,7 @@ library frontend
                        Happy.Frontend.AbsSyn,
                        Happy.Frontend.Mangler,
                        Happy.Frontend.PrettyGrammar
-  build-depends:       base < 5, array, transformers, containers, mtl, grammar
+  build-depends:       base < 5, array, transformers, containers, mtl, grammar, indentation
   other-modules:
         Happy.Frontend.ParseMonad
         Happy.Frontend.ParseMonad.Class
@@ -125,7 +132,7 @@ library tabular
   -- end of workaround. Delete the workaround and use the bash script posted at
   -- https://github.com/haskell/happy/issues/328#issuecomment-2597598320
   -- to test whether the workaround is still needed.
-  build-depends:       base < 5, array, containers, grammar
+  build-depends:       base < 5, array, containers, grammar, indentation
 
 
 library backend-lalr
@@ -144,7 +151,8 @@ library backend-glr
 
 library
   import: common-stanza
-  reexported-modules:  Happy.Grammar,
+  reexported-modules:  Happy.Indentation,
+                       Happy.Grammar,
                        Happy.Grammar.ExpressionWithHole,
                        Happy.Frontend,
                        Happy.Frontend.AbsSyn,
@@ -166,6 +174,7 @@ library
                  mtl >= 2.2.1,
                  -- NB: omit the `happy-lib:` prefix in happy-lib:grammar.
                  -- Otherwise we unnecessarily break Cabal < 3.4
+                 indentation,
                  grammar,
                  tabular,
                  frontend,

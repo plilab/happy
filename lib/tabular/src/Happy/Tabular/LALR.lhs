@@ -29,6 +29,10 @@ Generation of LALR parsing tables.
 > import Data.Function (on)
 > import Data.Maybe (listToMaybe, maybeToList)
 
+> import Happy.Indentation
+> import Data.Map ( Map )
+> import qualified Data.Map as Map hiding ( Map )
+
 > unionMap :: (Ord b) => (a -> Set b) -> Set a -> Set b
 > unionMap f = Set.foldr (Set.union . f) Set.empty
 
@@ -45,7 +49,7 @@ This means rule $a$, with dot at $b$ (all starting at 0)
 > data Lr0Item = Lr0 {-#UNPACK#-}!Int {-#UNPACK#-}!Int          -- (rule, dot)
 >       deriving (Eq,Ord,Show)
 
-> data Lr1Item = Lr1 {-#UNPACK#-}!Int {-#UNPACK#-}!Int NameSet  -- (rule, dot, lookahead)
+> data Lr1Item = Lr1 {-#UNPACK#-}!Int {-#UNPACK#-}!Int (Map Name LookaheadRel)  -- (rule, dot, lookahead)
 >       deriving (Show)
 
 > type RuleList = [Lr0Item]
@@ -64,6 +68,12 @@ This means rule $a$, with dot at $b$ (all starting at 0)
 > type GotoTable = Array Int{-state-} (Array Name{-nonterminal #-} Goto)
 > data Goto = Goto Int | NoGoto
 >       deriving (Eq, Show)
+
+> lookaheadToNameSet :: Map Name LookaheadRel -> NameSet
+> lookaheadToNameSet = NameSet.fromList . Map.keys
+
+> nameSetToLookahead :: NameSet -> Map Name LookaheadRel
+> nameSetToLookahead = NameSet.foldr (\n -> Map.insert n (LookaheadRel Splash Splash)) Map.empty
 
 -----------------------------------------------------------------------------
 Token numbering in an array-based parser:
@@ -152,14 +162,16 @@ Generating the closure of a set of LR(1) items
 >                                       new_old_items
 
 >               fn :: Lr1Item -> [Lr1Item]
->               fn (Lr1 rule dot as) = case drop dot lhs of
+>               fn (Lr1 rule dot as) = case drop dot lhsNames of
 >                       (nt:beta) | nt >= firstStartTok && nt <= last_nonterm ->
 >                           let terms = NameSet.delete catchTok $ -- the catch token is always shifted and never reduced (see pop_items)
->                                       unionNameMap (\a -> first (beta ++ [a])) as
+>                                       unionNameMap (\a -> first (beta ++ [a])) (lookaheadToNameSet as)
+>                               terms' = nameSetToLookahead terms
 >                           in
->                           [ (Lr1 rule' 0 terms) | rule' <- lookupProdsOfName g nt ]
+>                           [ (Lr1 rule' 0 terms') | rule' <- lookupProdsOfName g nt ]
 >                       _ -> []
 >                   where Production _name lhs _ _ = lookupProdNo g rule
+>                         lhsNames = map fst lhs
 
 Subtract the first set of items from the second.
 
@@ -179,8 +191,8 @@ Stamp on overloading with judicious use of type signatures...
 >               EQ -> case compare dot' dot of
 >                       LT -> i : result
 >                       GT -> carry_on
->                       EQ -> case NameSet.difference as' as of
->                               bs | NameSet.null bs -> result
+>                       EQ -> case Map.difference as' as of -- TODO
+>                               bs | Map.null bs -> result
 >                                  | otherwise -> (Lr1 rule dot bs) : result
 >  where
 >       carry_on = subtract_item items i result
@@ -197,7 +209,7 @@ Union two sets of items.
 >               EQ -> case compare dot dot' of
 >                       LT -> drop_i
 >                       GT -> drop_i'
->                       EQ -> (Lr1 rule dot (as `NameSet.union` as')) : union_items is is'
+>                       EQ -> (Lr1 rule dot (as `Map.union` as')) : union_items is is' -- TODO
 >  where
 >       drop_i  = i  : union_items is (i':is')
 >       drop_i' = i' : union_items (i:is) is'
@@ -342,12 +354,12 @@ calcLookaheads pass.
 >           where
 >               lookupGoto msg x = maybe (error msg) id (lookup x goto)
 
->               j = closure1 gram first [Lr1 rule dot (NameSet.singleton dummyTok)]
+>               j = closure1 gram first [Lr1 rule dot (Map.singleton dummyTok (LookaheadRel Splash Splash))]
 
 >               spontaneous :: [(Int, Lr0Item, NameSet)]
 >               spontaneous = do
 >                   (Lr1 rule' dot' ts) <- j
->                   let ts' = NameSet.delete dummyTok ts
+>                   let ts' = NameSet.delete dummyTok (lookaheadToNameSet ts)
 >                   guard (not $ NameSet.null ts')
 >                   maybeToList $ do r <- findRule gram rule' dot'
 >                                    return ( lookupGoto "spontaneous" r
@@ -357,7 +369,7 @@ calcLookaheads pass.
 >               propagated :: [(Lr0Item, Int, Lr0Item)]
 >               propagated = do
 >                   (Lr1 rule' dot' ts) <- j
->                   guard $ NameSet.member dummyTok ts
+>                   guard $ NameSet.member dummyTok (lookaheadToNameSet ts)
 >                   maybeToList $ do r <- findRule gram rule' dot'
 >                                    return ( item
 >                                           , lookupGoto "propagated" r
@@ -468,7 +480,7 @@ Stick the lookahead info back into the state table.
 >               where
 
 >                 mergeIntoItem :: Lr0Item -> Lr1Item
->                 mergeIntoItem item@(Lr0 rule dot) = Lr1 rule dot la
+>                 mergeIntoItem item@(Lr0 rule dot) = Lr1 rule dot (nameSetToLookahead la)
 >                    where la = case [ s | (item',s) <- lookaheads ! i,
 >                                           item == item' ] of
 >                                       [] -> NameSet.empty
@@ -533,7 +545,7 @@ Generate the action table
 >                     [ (startLookahead g partial, LR'Accept{-'-}) ]
 >                  | otherwise
 >                  -> let Production _ _ _ p = lookupProdNo g rule in
->                     NameSet.toAscList la `zip` repeat (LR'Reduce rule p)
+>                     NameSet.toAscList (lookaheadToNameSet la) `zip` repeat (LR'Reduce rule p)
 >               _ -> []
 
 >       possActions goto coll = do item <- closure1 g first coll
@@ -652,5 +664,6 @@ Count the conflicts
 -----------------------------------------------------------------------------
 
 > findRule :: Grammar e -> Int -> Int -> Maybe Name
-> findRule g rule dot = listToMaybe (drop dot lhs)
+> findRule g rule dot = listToMaybe (drop dot lhsNames)
 >     where Production _ lhs _ _ = lookupProdNo g rule
+>           lhsNames = map fst lhs

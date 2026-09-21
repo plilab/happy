@@ -28,8 +28,10 @@ The Grammar data type.
 > import Data.Array
 > import Happy.Grammar.ExpressionWithHole (ExpressionWithHole)
 
+> import Happy.Indentation (IndentRel)
+
 > data Production eliminator
->       = Production Name [Name] (eliminator,[Int]) Priority
+>       = Production Name [(Name, IndentRel)] (eliminator,[Int]) Priority
 >       deriving Show
 
 > data TokenSpec
