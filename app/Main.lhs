@@ -140,6 +140,7 @@ Print out the info file.
 >                       g
 >                       action
 >                       goto
+>                       la
 >                       conflictArray
 >                       fl_name
 >                       unused_rules

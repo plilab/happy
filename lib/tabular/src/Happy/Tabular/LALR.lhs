@@ -42,6 +42,9 @@ Generation of LALR parsing tables.
 > unionNameMap :: (Name -> NameSet) -> NameSet -> NameSet
 > unionNameMap f = NameSet.foldr (NameSet.union . f) NameSet.empty
 
+> unionLookaheadMap :: ((Name, LookaheadRel) -> Map Name LookaheadRel) -> Map Name LookaheadRel -> Map Name LookaheadRel
+> unionLookaheadMap f = Map.foldrWithKey (\s rel -> Map.unionWith unionLookaheadRel (f (s, rel))) Map.empty
+
 -----------------------------------------------------------------------------
 
 This means rule $a$, with dot at $b$ (all starting at 0)
@@ -147,7 +150,7 @@ using a memo table so that no work is repeated.
 -----------------------------------------------------------------------------
 Generating the closure of a set of LR(1) items
 
-> closure1 :: Grammar e -> ([Name] -> NameSet) -> [Lr1Item] -> [Lr1Item]
+> closure1 :: Grammar e -> ([(Name, LookaheadRel)] -> Map Name LookaheadRel) -> [Lr1Item] -> [Lr1Item]
 > closure1 g first set
 >       = fst (mkClosure (\(_,new) _ -> null new) addItems ([],set))
 >       where
@@ -162,16 +165,16 @@ Generating the closure of a set of LR(1) items
 >                                       new_old_items
 
 >               fn :: Lr1Item -> [Lr1Item]
->               fn (Lr1 rule dot as) = case drop dot lhsNames of
->                       (nt:beta) | nt >= firstStartTok && nt <= last_nonterm ->
->                           let terms = NameSet.delete catchTok $ -- the catch token is always shifted and never reduced (see pop_items)
->                                       unionNameMap (\a -> first (beta ++ [a])) (lookaheadToNameSet as)
->                               terms' = nameSetToLookahead terms
+>               fn (Lr1 rule dot as) = case drop dot lhs of
+>                       ((nt,ntRel):beta) | nt >= firstStartTok && nt <= last_nonterm ->
+>                           let beta' = [ (b, LookaheadRel ntRel rel) | (b, rel) <- beta ]
+>                               as' = Map.map (composeLookaheadParentRel ntRel) as
+>                               terms = Map.delete catchTok $ -- the catch token is always shifted and never reduced (see pop_items)
+>                                       unionLookaheadMap (\a -> first (beta' ++ [a])) as'
 >                           in
->                           [ (Lr1 rule' 0 terms') | rule' <- lookupProdsOfName g nt ]
+>                           [ (Lr1 rule' 0 terms) | rule' <- lookupProdsOfName g nt ]
 >                       _ -> []
 >                   where Production _name lhs _ _ = lookupProdNo g rule
->                         lhsNames = map fst lhs
 
 Subtract the first set of items from the second.
 
@@ -191,7 +194,7 @@ Stamp on overloading with judicious use of type signatures...
 >               EQ -> case compare dot' dot of
 >                       LT -> i : result
 >                       GT -> carry_on
->                       EQ -> case Map.difference as' as of -- TODO
+>                       EQ -> case Map.difference as' as of -- TODO figure out how to do difference on LookaheadRel
 >                               bs | Map.null bs -> result
 >                                  | otherwise -> (Lr1 rule dot bs) : result
 >  where
@@ -209,7 +212,7 @@ Union two sets of items.
 >               EQ -> case compare dot dot' of
 >                       LT -> drop_i
 >                       GT -> drop_i'
->                       EQ -> (Lr1 rule dot (as `Map.union` as')) : union_items is is' -- TODO
+>                       EQ -> (Lr1 rule dot (Map.unionWith unionLookaheadRel as as')) : union_items is is'
 >  where
 >       drop_i  = i  : union_items is (i':is')
 >       drop_i' = i' : union_items (i:is) is'
@@ -321,10 +324,10 @@ calcLookaheads pass.
 > propLookaheads
 >       :: Grammar e
 >       -> [ItemSetWithGotos]                   -- ^ LR(0) kernel sets
->       -> ([Name] -> NameSet)                  -- ^ First function
+>       -> ([(Name, LookaheadRel)] -> Map Name LookaheadRel)                  -- ^ First function
 >       -> (
->               [(Int, Lr0Item, NameSet)],      -- spontaneous lookaheads
->               Array Int [(Lr0Item, Int, Lr0Item)]     -- propagated lookaheads
+>               [(Int, Lr0Item, Map Name LookaheadRel)],      -- spontaneous lookaheads
+>               Array Int [(Lr0Item, Int, Lr0Item, IndentRel)]     -- propagated lookaheads
 >          )
 
 > propLookaheads gram sets first = (concat s, array (0,length sets - 1)
@@ -333,7 +336,7 @@ calcLookaheads pass.
 
 >     (s,p) = unzip (zipWith propLASet sets [0..])
 
->     propLASet :: (Set Lr0Item, [(Name, Int)]) -> Int -> ([(Int, Lr0Item, NameSet)],(Int,[(Lr0Item, Int, Lr0Item)]))
+>     propLASet :: (Set Lr0Item, [(Name, Int)]) -> Int -> ([(Int, Lr0Item, Map Name LookaheadRel)],(Int,[(Lr0Item, Int, Lr0Item, IndentRel)]))
 >     propLASet (set,goto) i = (start_spont ++ concat s', (i, concat p'))
 >       where
 
@@ -343,37 +346,39 @@ calcLookaheads pass.
 >         start_info :: [(String, Name, Name, Bool)]
 >         start_info = starts gram
 
->         start_spont :: [(Int, Lr0Item ,NameSet)]
+>         start_spont :: [(Int, Lr0Item ,Map Name LookaheadRel)]
 >         start_spont   = [ (start, (Lr0 start 0),
->                            NameSet.singleton (startLookahead gram partial))
+>                            Map.singleton (startLookahead gram partial) (LookaheadRel Eq Eq))
 >                         | (start, (_,_,_,partial)) <-
 >                               zip [0..] start_info]
 
->         propLAItem :: Lr0Item -> ([(Int, Lr0Item, NameSet)], [(Lr0Item, Int, Lr0Item)])
+>         propLAItem :: Lr0Item -> ([(Int, Lr0Item, Map Name LookaheadRel)], [(Lr0Item, Int, Lr0Item, IndentRel)])
 >         propLAItem item@(Lr0 rule dot) = (spontaneous, propagated)
 >           where
 >               lookupGoto msg x = maybe (error msg) id (lookup x goto)
 
->               j = closure1 gram first [Lr1 rule dot (Map.singleton dummyTok (LookaheadRel Splash Splash))]
+>               j = closure1 gram first [Lr1 rule dot (Map.singleton dummyTok (LookaheadRel Eq Eq))] -- Must be Eq to extract closure1's effect
 
->               spontaneous :: [(Int, Lr0Item, NameSet)]
+>               spontaneous :: [(Int, Lr0Item, Map Name LookaheadRel)]
 >               spontaneous = do
 >                   (Lr1 rule' dot' ts) <- j
->                   let ts' = NameSet.delete dummyTok (lookaheadToNameSet ts)
->                   guard (not $ NameSet.null ts')
+>                   let ts' = Map.delete dummyTok ts
+>                   guard (not $ Map.null ts')
 >                   maybeToList $ do r <- findRule gram rule' dot'
 >                                    return ( lookupGoto "spontaneous" r
 >                                           , Lr0 rule' (dot' + 1)
 >                                           , ts' )
 
->               propagated :: [(Lr0Item, Int, Lr0Item)]
+>               propagated :: [(Lr0Item, Int, Lr0Item, IndentRel)] -- item propagates its lookahead set to item' (with modification rel)
 >               propagated = do
 >                   (Lr1 rule' dot' ts) <- j
->                   guard $ NameSet.member dummyTok (lookaheadToNameSet ts)
+>                   guard $ Map.member dummyTok ts
 >                   maybeToList $ do r <- findRule gram rule' dot'
+>                                    let (LookaheadRel rel _) = ts Map.! dummyTok -- Find what closure1 did to the dummyTok's indentation
 >                                    return ( item
 >                                           , lookupGoto "propagated" r
->                                           , Lr0 rule' (dot' + 1) )
+>                                           , Lr0 rule' (dot' + 1)
+>                                           , rel )
 
 The lookahead for a start rule depends on whether it was declared
 with %name or %partial: a %name parser is assumed to parse the whole
@@ -390,9 +395,9 @@ Special version using a mutable array:
 
 > calcLookaheads
 >       :: Int                                  -- number of states
->       -> [(Int, Lr0Item, NameSet)]            -- spontaneous lookaheads
->       -> Array Int [(Lr0Item, Int, Lr0Item)]  -- propagated lookaheads
->       -> Array Int [(Lr0Item, NameSet)]
+>       -> [(Int, Lr0Item, Map Name LookaheadRel)]            -- spontaneous lookaheads
+>       -> Array Int [(Lr0Item, Int, Lr0Item, IndentRel)]  -- propagated lookaheads
+>       -> Array Int [(Lr0Item, Map Name LookaheadRel)]
 
 > calcLookaheads n_states spont prop
 >       = runST $ do
@@ -401,13 +406,13 @@ Special version using a mutable array:
 >           freeze arr
 
 >   where
->       propagate :: STArray s Int [(Lr0Item, NameSet)]
->                        -> [(Int, Lr0Item, NameSet)] -> ST s ()
+>       propagate :: STArray s Int [(Lr0Item, Map Name LookaheadRel)]
+>                        -> [(Int, Lr0Item, Map Name LookaheadRel)] -> ST s ()
 >       propagate _   []  = return ()
 >       propagate arr new = do
 >               let
->                  items = [ (i,item'',s) | (j,item,s) <- new,
->                                           (item',i,item'') <- prop ! j,
+>                  items = [ (i,item'',Map.map (composeLookaheadParentRel rel) s) | (j,item,s) <- new,
+>                                           (item',i,item'', rel) <- prop ! j,
 >                                           item == item' ]
 >               new_new <- get_new arr items []
 >               add_lookaheads arr new
@@ -417,42 +422,42 @@ This function is needed to merge all the (set_no,item,name) triples
 into (set_no, item, set name) triples.  It can be removed when we get
 the spontaneous lookaheads in the right form to begin with (ToDo).
 
-> add_lookaheads :: STArray s Int [(Lr0Item, NameSet)]
->                -> [(Int, Lr0Item, NameSet)]
+> add_lookaheads :: STArray s Int [(Lr0Item, Map Name LookaheadRel)]
+>                -> [(Int, Lr0Item, Map Name LookaheadRel)]
 >                -> ST s ()
 > add_lookaheads arr = mapM_ $ \(i,item,s)
 >                    -> do las <- readArray arr i
 >                          writeArray arr i (add_lookahead item s las)
 
-> get_new :: STArray s Int [(Lr0Item, NameSet)]
->         -> [(Int, Lr0Item, NameSet)]
->         -> [(Int, Lr0Item, NameSet)]
->         -> ST s [(Int, Lr0Item, NameSet)]
+> get_new :: STArray s Int [(Lr0Item, Map Name LookaheadRel)]
+>         -> [(Int, Lr0Item, Map Name LookaheadRel)]
+>         -> [(Int, Lr0Item, Map Name LookaheadRel)]
+>         -> ST s [(Int, Lr0Item, Map Name LookaheadRel)]
 > get_new _   []                   new = return new
 > get_new arr (l@(i,_item,_s):las) new = do
 >       state_las <- readArray arr i
 >       get_new arr las (get_new' l state_las new)
 
-> add_lookahead :: Lr0Item -> NameSet -> [(Lr0Item,NameSet)] ->
->                       [(Lr0Item,NameSet)]
+> add_lookahead :: Lr0Item -> Map Name LookaheadRel -> [(Lr0Item,Map Name LookaheadRel)] ->
+>                       [(Lr0Item,Map Name LookaheadRel)]
 > add_lookahead item s [] = [(item,s)]
 > add_lookahead item s (m@(item',s') : las)
->       | item == item' = (item, s `NameSet.union` s') : las
+>       | item == item' = (item, Map.unionWith unionLookaheadRel s s') : las
 >       | otherwise     = m : add_lookahead item s las
 
-> get_new' :: (Int,Lr0Item,NameSet) -> [(Lr0Item,NameSet)] ->
->                [(Int,Lr0Item,NameSet)] -> [(Int,Lr0Item,NameSet)]
+> get_new' :: (Int,Lr0Item,Map Name LookaheadRel) -> [(Lr0Item,Map Name LookaheadRel)] ->
+>                [(Int,Lr0Item,Map Name LookaheadRel)] -> [(Int,Lr0Item,Map Name LookaheadRel)]
 > get_new' l [] new = l : new
 > get_new' l@(i,item,s) ((item',s') : las) new
 >       | item == item' =
->               let s'' = s NameSet.\\ s' in
->               if NameSet.null s'' then new else (i,item,s'') : new
+>               let s'' = s Map.\\ s' in
+>               if Map.null s'' then new else (i,item,s'') : new
 >       | otherwise =
 >               get_new' l las new
 
-> fold_lookahead :: [(Int,Lr0Item,NameSet)] -> [(Int,Lr0Item,NameSet)]
+> fold_lookahead :: [(Int,Lr0Item,Map Name LookaheadRel)] -> [(Int,Lr0Item,Map Name LookaheadRel)]
 > fold_lookahead =
->     map (\cs@(((a,b),_):_) -> (a,b,NameSet.unions $ map snd cs)) .
+>     map (\cs@(((a,b),_):_) -> (a,b,Map.unionsWith unionLookaheadRel $ map snd cs)) .
 >     groupBy ((==) `on` fst) .
 >     sortBy (compare `on` fst) .
 >     map (\(a,b,c) -> ((a,b),c))
@@ -466,7 +471,7 @@ Merge lookaheads
 Stick the lookahead info back into the state table.
 
 > mergeLookaheadInfo
->       :: Array Int [(Lr0Item, NameSet)]       -- ^ lookahead info
+>       :: Array Int [(Lr0Item, Map Name LookaheadRel)]       -- ^ lookahead info
 >       -> [ItemSetWithGotos]                   -- ^ state table
 >       -> [Lr1State]
 
@@ -480,10 +485,10 @@ Stick the lookahead info back into the state table.
 >               where
 
 >                 mergeIntoItem :: Lr0Item -> Lr1Item
->                 mergeIntoItem item@(Lr0 rule dot) = Lr1 rule dot (nameSetToLookahead la)
+>                 mergeIntoItem item@(Lr0 rule dot) = Lr1 rule dot la
 >                    where la = case [ s | (item',s) <- lookaheads ! i,
 >                                           item == item' ] of
->                                       [] -> NameSet.empty
+>                                       [] -> Map.empty
 >                                       [x] -> x
 >                                       _ -> error "mergIntoItem"
 
@@ -514,7 +519,7 @@ Generating the goto table doesn't need lookahead info.
 -----------------------------------------------------------------------------
 Generate the action table
 
-> genActionTable :: Grammar e -> ([Name] -> NameSet) ->
+> genActionTable :: Grammar e -> ([(Name, LookaheadRel)] -> Map Name LookaheadRel) ->
 >                [Lr1State] -> ActionTable
 > genActionTable g first sets = actionTable
 >   where

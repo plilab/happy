@@ -10,12 +10,15 @@ Generating info files.
 > import qualified Data.Set as Set hiding ( Set )
 > import Happy.Grammar
 > import Happy.Grammar.ExpressionWithHole ( substExpressionWithHole )
-> import Happy.Indentation ( IndentRel )
 > import Happy.Tabular.LALR   ( Lr0Item(..), LRAction(..), Goto(..), GotoTable, ActionTable )
 
 > import Data.Array
 > import Data.List (nub)
 > import Data.Version           ( Version, showVersion )
+
+> import Data.Map (Map)
+> import qualified Data.Map as Map hiding ( Map )
+> import Happy.Indentation
 
 Produce a file of parser information, useful for debugging the parser.
 
@@ -24,6 +27,7 @@ Produce a file of parser information, useful for debugging the parser.
 >       -> Grammar e
 >       -> ActionTable
 >       -> GotoTable
+>       -> Array Int [(Lr0Item, Map Name LookaheadRel)]
 >       -> Array Int (Int,Int)
 >       -> String
 >       -> [Int]                        -- unused rules
@@ -39,7 +43,7 @@ Produce a file of parser information, useful for debugging the parser.
 >                , token_names = env
 >                , token_specs = tokens
 >                })
->        action goto conflictArray filename unused_rules unused_terminals version
+>        action goto la conflictArray filename unused_rules unused_terminals version
 >       = (showHeader
 >       . showConflicts
 >       . showUnused
@@ -118,6 +122,8 @@ Produce a file of parser information, useful for debugging the parser.
 >       . foldr (.) id (map showAction (assocs (action ! n)))
 >       . str "\n"
 >       . foldr (.) id (map showGoto (assocs (goto ! n)))
+>       . str "\n"
+>       . showLookaheads n
 >     where
 >       nonRuleItems  = [ (Lr0 r d) | (Lr0 r d) <- state, d /= 0 ]
 >       selectedItems = if null nonRuleItems then take 1 state else nonRuleItems
@@ -127,6 +133,25 @@ Produce a file of parser information, useful for debugging the parser.
 >         -- However, if the initial item started with a dot, it should not be dropped,
 >         -- otherwise there will be no items left.  Thus, should there be no items
 >         -- not starting with a dot, we print the initial item.
+
+>   showLookaheads n
+>       = str "\tLookaheads:\n"
+>       . interleave "\n" (map showItemWithLookahead (la ! n))
+>       . str "\n"
+
+>   showItemWithLookahead (lr0, las)
+>       = showItem lr0
+>       . str "\n\t\t"
+>       . interleave "\n\t\t" (map showLookahead (Map.toAscList las))
+>       where
+>       showLookahead (a, (LookaheadRel p c))
+>           = str "("
+>           . showIndentRel p
+>           . str ", "
+>           . showIndentRel c
+>           . str ", "
+>           . showName a
+>           . str ")"
 
 >   showItem (Lr0 rule dot)
 >       = ljuststr 50 (
@@ -216,7 +241,18 @@ Produce a file of parser information, useful for debugging the parser.
 >   showJName j = str . ljustify j . nameOf
 
 >   showNameWithIndentation :: (Name, IndentRel) -> String -> String
->   showNameWithIndentation (name, rel) = str (show rel ++ "[" ++ nameOf name ++ "]")
+>   showNameWithIndentation (name, rel)
+>       = str "("
+>       . showName name
+>       . str ", "
+>       . showIndentRel rel
+>       . str ")"
+
+>   showIndentRel :: IndentRel -> String -> String
+>   showIndentRel Eq = str "="
+>   showIndentRel Geq = str ">="
+>   showIndentRel (Gt n) = str (concat (replicate n ">"))
+>   showIndentRel Splash = str "*"
 
 > ljustify :: Int -> String -> String
 > ljustify n s = s ++ replicate (max 0 (n - length s)) ' '
