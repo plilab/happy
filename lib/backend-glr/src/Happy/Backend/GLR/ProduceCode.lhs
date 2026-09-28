@@ -460,7 +460,8 @@ Creating a type for storing semantic rules
 >          | i <- user_non_terminals g
 >          , let i_ty = typeOf i
 >          , j <- lookupProdsOfName g i  -- all prod numbers
->          , let Production _ ts (raw_code,dollar_vars) _ = lookupProdNo g j
+>          , let Production _ tss (raw_code,dollar_vars) _ = lookupProdNo g j
+>          , let ts = map fst tss
 >          , let var_mask = map (\x -> x - 1) vars_used
 >                           where vars_used = sort $ nub dollar_vars
 >          , let args = [ typeOf $ ts !! v | v <- var_mask ]
@@ -505,7 +506,8 @@ Creating a type for storing semantic rules
 >          | i <- user_non_terminals g
 >          , let i_ty = typeOf i
 >          , j <- lookupProdsOfName g i  -- all prod numbers
->          , let Production _ ts (code,dollar_vars) _ = lookupProdNo g j
+>          , let Production _ tss (code,dollar_vars) _ = lookupProdNo g j
+>          , let ts = map fst tss
 >          , let var_mask = map (\x -> x - 1) vars_used
 >                           where vars_used = sort $ nub dollar_vars
 >          , let ts_pats = [ (k+1,c) | k <- var_mask

@@ -243,9 +243,10 @@ happyMonadReduce to get polymorphic recursion.  Sigh.
 >       interleave "\n\n"
 >          (zipWith produceReduction (drop n_starts prods) [ n_starts .. ])
 
->    produceReduction (Production nt toks (code,vars_used) _) i
+>    produceReduction (Production nt tokss (code,vars_used) _) i
 
 >     | is_monad_prod && (use_monad || imported_identity')
+>     , let toks = map fst tokss
 >       = mkReductionHdr (showInt lt) monad_reduce
 >       . char '(' . interleave (" `HappyStk`\n" ++ indentStr) tokPatterns
 >       . str "happyRest) tk\n" . indent . str " = happyThen ("
@@ -256,6 +257,7 @@ happyMonadReduce to get polymorphic recursion.  Sigh.
 >       . str "\n" . indent . str ") (\\r -> happyReturn (" . this_absSynCon . str " r))"
 
 >     | specReduceFun lt
+>     , let toks = map fst tokss
 >       = mkReductionHdr id ("happySpecReduce_" ++ show lt)
 >       . interleave ("\n" ++ indentStr) tokPatterns
 >       . str " =  "
@@ -280,6 +282,7 @@ happyMonadReduce to get polymorphic recursion.  Sigh.
 >          )
 
 >       where
+>               toks = map fst tokss
 >               (code', is_monad_prod, monad_pass_token, monad_reduce)
 >                     = case code of
 >                         '%':'%':code1 -> (code1, True, True, "happyMonad2Reduce")
