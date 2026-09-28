@@ -2,6 +2,8 @@
 >       composeIndentRel,
 >       unionIndentRel,
 >       composeLookaheadRel,
+>       composeLookaheadParentRel,
+>       composeLookaheadChildRel,
 >       unionLookaheadRel,
 >       IndentRel(..),
 >       LookaheadRel(..)
@@ -18,13 +20,7 @@ An IndentRel is attached to every symbol on the RHS of a grammar rule.
 >       | Geq -- TODO add a (Geq n)
 >       | Gt Int
 >       | Splash
->       deriving (Eq)
-
-> instance Show IndentRel where
->   show Eq = "="
->   show Geq = ">="
->   show (Gt n) = concat (replicate n ">")
->   show Splash = "*"
+>       deriving (Eq, Show)
 
 > composeIndentRel :: IndentRel -> IndentRel -> IndentRel
 > composeIndentRel Splash _ = Splash
@@ -51,14 +47,19 @@ An IndentRel is attached to every symbol on the RHS of a grammar rule.
 A LookaheadRel consists of two relations.
 
 > data LookaheadRel = LookaheadRel IndentRel IndentRel 
->                   deriving (Eq)
-
-> instance Show LookaheadRel where
->   show (LookaheadRel parentRel childRel) = "<" ++ show parentRel ++ " " ++ show childRel ++ ">"
+>                   deriving (Eq, Show)
 
 > composeLookaheadRel :: LookaheadRel -> LookaheadRel -> LookaheadRel
 > composeLookaheadRel (LookaheadRel p1 c1) (LookaheadRel p2 c2) =
 >   LookaheadRel (composeIndentRel p1 p2) (composeIndentRel c1 c2)
+
+> composeLookaheadParentRel :: IndentRel -> LookaheadRel -> LookaheadRel
+> composeLookaheadParentRel r (LookaheadRel p c) =
+>   LookaheadRel (composeIndentRel p r) c
+
+> composeLookaheadChildRel :: IndentRel -> LookaheadRel -> LookaheadRel
+> composeLookaheadChildRel r (LookaheadRel p c) =
+>   LookaheadRel p (composeIndentRel c r)
 
 > unionLookaheadRel :: LookaheadRel -> LookaheadRel -> LookaheadRel
 > unionLookaheadRel (LookaheadRel p1 c1) (LookaheadRel p2 c2) =
