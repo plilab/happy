@@ -359,6 +359,16 @@ calcLookaheads pass.
 
 >               j = closure1 gram first [Lr1 rule dot (Map.singleton dummyTok (LookaheadRel Eq Eq))] -- Must be Eq to extract closure1's effect
 
+If the current augmented item is
+
+  [A -> . (>, B) (>=, a) ; (=, =, <dummy>)]
+
+then the lookahead for B is spontaneous:
+  
+  [B -> . w ; (>, >=, a)]
+
+The parent and child relations are directly derived from [A -> . (>, B) (>=, a)]
+
 >               spontaneous :: [(Int, Lr0Item, Map Name LookaheadRel)]
 >               spontaneous = do
 >                   (Lr1 rule' dot' ts) <- j
@@ -368,6 +378,16 @@ calcLookaheads pass.
 >                                    return ( lookupGoto "spontaneous" r
 >                                           , Lr0 rule' (dot' + 1)
 >                                           , ts' )
+
+If the current augmented item is
+
+  [A -> . (>, B) ; (=, =, <dummy>)]
+  
+then the lookahead for B is propagated:
+  
+  [B -> . w ; (>, =, <dummy>)]
+
+The parent relation is modified to match B's relation to A's.
 
 >               propagated :: [(Lr0Item, Int, Lr0Item, IndentRel)] -- item propagates its lookahead set to item' (with modification rel)
 >               propagated = do
