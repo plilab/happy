@@ -9,11 +9,19 @@
 >       LookaheadRel(..)
 >       ) where
 
-I will split these into different files later on
-
-There are more relations, but these will do for now
-
 An IndentRel is attached to every symbol on the RHS of a grammar rule.
+
+For example, this is a (unannotated) grammar for balanced braces
+
+    expr -> expr expr
+    expr -> '[' expr ']'
+    expr -> epsilon
+
+To make all braces vertically-aligned, we add the annotations
+
+    expr -> (expr, Any) (expr, Any)
+    epxr -> ('[', =) (expr, Any) (']', =)
+    expr -> epsilon
 
 > data IndentRel
 >       = Eq

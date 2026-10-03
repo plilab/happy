@@ -40,19 +40,27 @@ This will never terminate.
 The env variable is a mapping from symbols to indented FIRST sets.
 
 For example, if the initial item set is
-    S' -> . S>=
-    S -> . A>
-    A -> . a= B>
-    A -> . B> c>
-    B -> . b>
-    B -> . eps
-Then FIRST(A) = { a=, b>>, c> }.
+    S' -> . (S, >=)
+    S -> . (A, >)
+    A -> . (a, =) (B, >)
+    A -> . (B, >) (c, >)
+    B -> . (b, >)
+    B -> . epsilon
 
-When a lookahead is attached to the symbol, then the FIRST set needs to consider this indentation
+Then conceptually, FIRST(A) = { (a, =), (b, >>), (c, >) }.
 
-FIRST( (>=, >, A) ) = { (>=, >, a), (>=, >>>, b), (>=, >>, c) }.
+Also, FIRST((A, >)) = { (a, >), (b, >>>), (c, >>) }.
 
-The child relation gets "shifted down" to account for the relationship of A with its ancestor node (>).
+Finally, with a lookahead relation, 
+
+    FIRST((A, rel, >)) = { (a, rel, >), (b, rel, >>>), (c, rel, >>) }
+                       = { (a, rel, = . >), (b, rel, >> . >), (c, rel, > . >) }
+
+where "= . >" represents composition.
+
+It is necessary to use lookahead relations as, in the closure1 function, it helps to differentiate
+between a propagated lookahead token and one that was spontaneously generated.
+
 
 > mkFirst :: Grammar e -> [(Name, LookaheadRel)] -> Map Name LookaheadRel
 > mkFirst (Grammar { first_term = fst_term
