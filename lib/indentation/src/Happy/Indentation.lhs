@@ -36,12 +36,12 @@ An IndentRel is attached to every symbol on the RHS of a grammar rule.
 > unionIndentRel _ Splash = Splash
 > unionIndentRel Eq Eq = Eq
 > unionIndentRel Eq Geq = Geq
-> unionIndentRel Eq (Gt _) = Geq -- TODO factor in Gt n
+> unionIndentRel Eq (Gt 1) = Geq
 > unionIndentRel Geq Eq = Geq
 > unionIndentRel Geq Geq = Geq
-> unionIndentRel Geq (Gt n) = Gt n
-> unionIndentRel (Gt _) Eq = Geq -- TODO factor in Gt n
-> unionIndentRel (Gt n) Geq = Gt n
+> unionIndentRel Geq (Gt _) = Geq
+> unionIndentRel (Gt 1) Eq = Geq
+> unionIndentRel (Gt _) Geq = Geq
 > unionIndentRel (Gt n) (Gt m) = Gt (min n m)
 
 A LookaheadRel consists of two relations.
