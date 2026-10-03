@@ -252,7 +252,7 @@ Produce a file of parser information, useful for debugging the parser.
 >   showIndentRel Eq = str "="
 >   showIndentRel Geq = str ">="
 >   showIndentRel (Gt n) = str (concat (replicate n ">"))
->   showIndentRel Splash = str "*"
+>   showIndentRel Any = str "*"
 
 > ljustify :: Int -> String -> String
 > ljustify n s = s ++ replicate (max 0 (n - length s)) ' '

@@ -9,22 +9,30 @@
 >       LookaheadRel(..)
 >       ) where
 
-I will split these into different files later on
-
-There are more relations, but these will do for now
-
 An IndentRel is attached to every symbol on the RHS of a grammar rule.
+
+For example, this is a (unannotated) grammar for balanced braces
+
+    expr -> expr expr
+    expr -> '[' expr ']'
+    expr -> epsilon
+
+To make all braces vertically-aligned, we add the annotations
+
+    expr -> (expr, Any) (expr, Any)
+    epxr -> ('[', =) (expr, Any) (']', =)
+    expr -> epsilon
 
 > data IndentRel
 >       = Eq
->       | Geq -- TODO add a (Geq n)
+>       | Geq
 >       | Gt Int
->       | Splash
+>       | Any
 >       deriving (Eq, Show)
 
 > composeIndentRel :: IndentRel -> IndentRel -> IndentRel
-> composeIndentRel Splash _ = Splash
-> composeIndentRel _ Splash = Splash
+> composeIndentRel Any _ = Any
+> composeIndentRel _ Any = Any
 > composeIndentRel Eq r = r
 > composeIndentRel r Eq = r
 > composeIndentRel Geq r = r
@@ -32,16 +40,16 @@ An IndentRel is attached to every symbol on the RHS of a grammar rule.
 > composeIndentRel (Gt n) (Gt m) = Gt (n + m)
 
 > unionIndentRel :: IndentRel -> IndentRel -> IndentRel
-> unionIndentRel Splash _ = Splash
-> unionIndentRel _ Splash = Splash
+> unionIndentRel Any _ = Any
+> unionIndentRel _ Any = Any
 > unionIndentRel Eq Eq = Eq
 > unionIndentRel Eq Geq = Geq
-> unionIndentRel Eq (Gt _) = Geq -- TODO factor in Gt n
+> unionIndentRel Eq (Gt 1) = Geq
 > unionIndentRel Geq Eq = Geq
 > unionIndentRel Geq Geq = Geq
-> unionIndentRel Geq (Gt n) = Gt n
-> unionIndentRel (Gt _) Eq = Geq -- TODO factor in Gt n
-> unionIndentRel (Gt n) Geq = Gt n
+> unionIndentRel Geq (Gt _) = Geq
+> unionIndentRel (Gt 1) Eq = Geq
+> unionIndentRel (Gt _) Geq = Geq
 > unionIndentRel (Gt n) (Gt m) = Gt (min n m)
 
 A LookaheadRel consists of two relations.
