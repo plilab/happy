@@ -76,7 +76,7 @@ This means rule $a$, with dot at $b$ (all starting at 0)
 > lookaheadToNameSet = NameSet.fromList . Map.keys
 
 > nameSetToLookahead :: NameSet -> Map Name LookaheadRel
-> nameSetToLookahead = NameSet.foldr (\n -> Map.insert n (LookaheadRel Splash Splash)) Map.empty
+> nameSetToLookahead = NameSet.foldr (\n -> Map.insert n (LookaheadRel Any Any)) Map.empty
 
 -----------------------------------------------------------------------------
 Token numbering in an array-based parser:

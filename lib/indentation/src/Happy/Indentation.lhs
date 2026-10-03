@@ -17,14 +17,14 @@ An IndentRel is attached to every symbol on the RHS of a grammar rule.
 
 > data IndentRel
 >       = Eq
->       | Geq -- TODO add a (Geq n)
+>       | Geq
 >       | Gt Int
->       | Splash
+>       | Any
 >       deriving (Eq, Show)
 
 > composeIndentRel :: IndentRel -> IndentRel -> IndentRel
-> composeIndentRel Splash _ = Splash
-> composeIndentRel _ Splash = Splash
+> composeIndentRel Any _ = Any
+> composeIndentRel _ Any = Any
 > composeIndentRel Eq r = r
 > composeIndentRel r Eq = r
 > composeIndentRel Geq r = r
@@ -32,8 +32,8 @@ An IndentRel is attached to every symbol on the RHS of a grammar rule.
 > composeIndentRel (Gt n) (Gt m) = Gt (n + m)
 
 > unionIndentRel :: IndentRel -> IndentRel -> IndentRel
-> unionIndentRel Splash _ = Splash
-> unionIndentRel _ Splash = Splash
+> unionIndentRel Any _ = Any
+> unionIndentRel _ Any = Any
 > unionIndentRel Eq Eq = Eq
 > unionIndentRel Eq Geq = Geq
 > unionIndentRel Eq (Gt 1) = Geq
