@@ -7,6 +7,7 @@ Abstract syntax for grammar files.
 Here is the abstract syntax of the language we parse.
 
 > module Happy.Frontend.AbsSyn (
+>       IndentAnn(..),
 >       BookendedAbsSyn(..),
 >       AbsSyn(..), Directive(..),
 >       getTokenType, getTokenSpec, getParserNames, getLexer,
@@ -21,6 +22,13 @@ Here is the abstract syntax of the language we parse.
 > import Data.Char (isAlphaNum)
 > import Happy.Grammar
 > import Happy.Grammar.ExpressionWithHole
+
+> data IndentAnn
+>     = Eq
+>     | Gt
+>     | Any
+>     | NoAnn
+>   deriving Show
 
 > data BookendedAbsSyn
 >     = BookendedAbsSyn
@@ -43,7 +51,7 @@ Here is the abstract syntax of the language we parse.
 
 > data Prod e
 >     = Prod
->         [Term]               -- terms that make up the rule
+>         [(Term, IndentAnn)]               -- terms that make up the rule
 >         e                    -- code body that runs when the rule reduces
 >         Int                  -- line number
 >         Prec                 -- inline precedence annotation for the rule

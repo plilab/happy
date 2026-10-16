@@ -47,7 +47,12 @@ The parser.
 >       "|"             { TokenKW      TokBar }
 >       "("             { TokenKW      TokParenL }
 >       ")"             { TokenKW      TokParenR }
+>       "["             { TokenKW      TokBraceL }
+>       "]"             { TokenKW      TokBraceR }
 >       ","             { TokenKW      TokComma }
+>       "="             { TokenKW      TokEq }
+>       ">"             { TokenKW      TokGt }
+>       "*"             { TokenKW      TokStar }
 
 > %monad { P }
 > %lexer { lexTokenP } { TokenEOF }
@@ -82,24 +87,34 @@ The parser.
 >       | prod                          { [$1] }
 
 > prod :: { Prod String }
->       : terms prec code ";"           {% lineP >>= \l -> return (Prod $1 $3 l $2) }
->       | terms prec code               {% lineP >>= \l -> return (Prod $1 $3 l $2) }
+>       : annTerms prec code ";"           {% lineP >>= \l -> return (Prod $1 $3 l $2) }
+>       | annTerms prec code               {% lineP >>= \l -> return (Prod $1 $3 l $2) }
 
 > term :: { Term }
 >       : id                             { App $1 [] }
 >       | id "(" comma_terms ")"         { App $1 (reverse $3) }
 
-> terms :: { [Term] }
->       : terms_rev                      { reverse $1 }
->       |                                { [] }
-
-> terms_rev :: { [Term] }
->       : term                           { [$1] }
->       | terms_rev term                 { $2 : $1 }
-
 > comma_terms :: { [Term] }
 >       : term                           { [$1] }
 >       | comma_terms "," term           { $3 : $1 }
+
+> ann :: { IndentAnn }
+>       : "="                            { Eq }
+>       | ">"                            { Gt }
+>       | "*"                            { Any }
+
+> annTerm :: { (Term, IndentAnn) }
+>       : id                             { (App $1 [], NoAnn) }
+>       | "[" id "," ann "]"             { (App $2 [], $4) }
+>       | id "(" comma_terms ")"         { (App $1 (reverse $3), NoAnn) }
+
+> annTerms :: { [(Term, IndentAnn)] }
+>       : annTerms_rev                   { reverse $1 }
+>       |                                { [] }
+
+> annTerms_rev :: { [(Term, IndentAnn)] }
+>       : annTerm                        { [$1] }
+>       | annTerms_rev annTerm           { $2 : $1 }
 
 > prec :: { Prec }
 >       : spec_prec id                  { PrecId $2 }

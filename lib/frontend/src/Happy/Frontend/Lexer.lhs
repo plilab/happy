@@ -61,7 +61,12 @@ The lexer.
 >       | TokNum                -- Integer
 >       | TokParenL             -- (
 >       | TokParenR             -- )
+>       | TokBraceL             -- [
+>       | TokBraceR             -- ]
 >       | TokComma              -- ,
+>       | TokEq                 -- =
+>       | TokGt                 -- >
+>       | TokStar               -- the * token
 >       deriving (Eq,Ord,Show)
 
 ToDo: proper text instance here, for use in parser error messages.
@@ -92,6 +97,13 @@ ToDo: proper text instance here, for use in parser error messages.
 >       '('     -> cont (TokenKW TokParenL)
 >       ')'     -> cont (TokenKW TokParenR)
 >       ','     -> cont (TokenKW TokComma)
+
+>       '['     -> cont (TokenKW TokBraceL)
+>       ']'     -> cont (TokenKW TokBraceR)
+
+>       '='     -> cont (TokenKW TokEq)
+>       '>'     -> cont (TokenKW TokGt)
+>       '*'     -> cont (TokenKW TokStar)
 
 >       _
 >         | isSpace c -> lexer cont

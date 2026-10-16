@@ -31,7 +31,7 @@ ppRule (Rule name _ prods _) = text name
 ppProd :: Prod String -> Doc
 ppProd (Prod ts _ _ p) = psDoc <+> ppPrec p
   where
-  psDoc   = if null ts then text "{- empty -}" else hsep (map ppTerm ts)
+  psDoc   = if null ts then text "{- empty -}" else hsep (map ppTermAndIndentAnn ts)
 
 ppPrec :: Prec -> Doc
 ppPrec PrecNone   = empty
@@ -40,6 +40,15 @@ ppPrec (PrecId x) = text "%prec" <+> text x
 
 ppTerm :: Term -> Doc
 ppTerm (App x ts) = text x <> ppTuple (map ppTerm ts)
+
+ppIndentAnn :: IndentAnn -> Doc
+ppIndentAnn Eq = text "="
+ppIndentAnn Gt = text ">"
+ppIndentAnn Any = text "*"
+ppIndentAnn NoAnn = text "?"
+
+ppTermAndIndentAnn :: (Term, IndentAnn) -> Doc
+ppTermAndIndentAnn (t, i) = ppTerm t <+> ppIndentAnn i
 
 ppTuple :: [Doc] -> Doc
 ppTuple [] = empty

@@ -10,6 +10,8 @@ Mangler converts AbsSyn to Grammar
 
 > module Happy.Frontend.Mangler (mangler) where
 
+> import qualified Happy.Indentation as I
+
 > import Happy.Grammar
 > import Happy.Frontend.AbsSyn
 > import Happy.Frontend.Mangler.Monad
@@ -126,7 +128,7 @@ Start symbols...
 >   let
 >       parser_names   = [ s | TokenName s _ _ <- starts' ]
 >       start_partials = [ b | TokenName _ _ b <- starts' ]
->       start_prods = zipWith (\nm tok -> Production nm [tok] (noCode,[]) No)
+>       start_prods = zipWith (\nm tok -> Production nm [(tok, I.Eq)] (noCode,[]) No)
 >                        start_names start_toks
 
 Deal with priorities...
@@ -159,12 +161,21 @@ Translate the rules from string to name-based.
 >       transRule (nt, prods, _ty)
 >         = mapM (finishRule nt) prods
 
+>       annToRel :: (Name, IndentAnn) -> (Name, I.IndentRel)
+>       annToRel (n, Eq) = (n, I.Eq)
+>       annToRel (n, Gt) = (n, I.Gt 1)
+>       annToRel (n, Any) = (n, I.Any)
+>       annToRel (n, NoAnn) = (n, if n `elem` terminal_names then I.Gt 1 else I.Eq)
+
 >       finishRule :: Name -> Prod1 e -> Writer [ErrMsg] (Production e)
 >       finishRule nt (Prod1 lhs code line prec)
 >         = mapWriter (\(a,e) -> (a, map (addLine line) e)) $ do
->           lhs' <- mapM mapToName lhs
->           code' <- checkCode lhs' nonterm_names code
->           case mkPrec lhs' prec of
+>           -- lhs :: [(RuleName, IndentRel)]
+>           names <- mapM mapToName (map fst lhs)
+>           let anns = map snd lhs
+>           let lhs' = map annToRel (zip names anns)
+>           code' <- checkCode names nonterm_names code
+>           case mkPrec names prec of
 >               Left s  -> do addErr ("Undeclared precedence token: " ++ s)
 >                             return (Production nt lhs' code' No)
 >               Right p -> return (Production nt lhs' code' p)

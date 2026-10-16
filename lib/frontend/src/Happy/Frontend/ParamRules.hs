@@ -28,7 +28,7 @@ newtype Funs e = Funs (M.Map RuleName (Rule e))
 data Rule1 e  = Rule1 RuleName [Prod1 e] (Maybe (String, Subst))
 
 -- | Similar to 'Prod', but `Term`'s have been flattened into `RuleName`'s
-data Prod1 e  = Prod1 [RuleName] e Int Prec
+data Prod1 e  = Prod1 [(RuleName, IndentAnn)] e Int Prec
 
 inst_name :: Inst -> RuleName
 inst_name (Inst f [])  = f
@@ -58,8 +58,9 @@ from_terms s ts = mapM (from_term s) ts
 
 -- XXX: perhaps change the line to the line of the instance
 inst_prod :: Subst -> Prod e -> M1 (Prod1 e)
-inst_prod s (Prod ts c l p)  = do xs <- from_terms s ts
-                                  return (Prod1 xs c l p)
+inst_prod s (Prod ts c l p)  = do xs <- from_terms s (map fst ts)
+                                  let rels = map snd ts
+                                  return (Prod1 (zip xs rels) c l p)
 
 inst_rule :: Rule e -> [RuleName] -> M2 (Rule1 e)
 inst_rule (Rule x xs ps t) ts  = do s <- build xs ts []
